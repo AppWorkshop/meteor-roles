@@ -1,6 +1,6 @@
 Package.describe({
   summary: "Authorization package for Meteor",
-  version: "2.0.0",
+  version: "2.0.1",
   git: "https://github.com/AppWorkshop/meteor-roles.git",
   name: "appworkshop:roles"
 });
@@ -35,7 +35,7 @@ Package.onTest(function (api) {
 
   // `accounts-password` is included so `Meteor.users` exists
 
-  api.use(['alanning:roles',
+  api.use(['appworkshop:roles',
            'accounts-password',
            'underscore',
            'mongo',

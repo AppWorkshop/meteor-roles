@@ -1165,8 +1165,6 @@
 
       Roles._backwardMigrate(null, null, true);
 
-      console.log(`==== Meteor.users.findOne: ${JSON.stringify(Meteor.users.findOne(users.eve, {fields: {roles: 1, _id: 0}}), null, 2)}`);
-
       test.equal(Meteor.users.findOne(users.eve, {fields: {roles: 1, _id: 0}}), {
         roles:{"__global_roles__":["admin","editor"]}
       });
@@ -1389,11 +1387,7 @@
       // _assureConsistency should remove this extra role
       Meteor.users.update(users.eve, {$push: {roles: {roleName: 'DELETE_PERMISSION', scope: null, assigned: false}}});
 
-      console.log(`==== Users before _assureConsistency: ${JSON.stringify(Meteor.users.find({}).fetch(), null, 2)}`);
-
       Roles._assureConsistency(users.eve);
-
-      console.log(`==== Users after _assureConsistency: ${JSON.stringify(Meteor.users.find({}).fetch(), null, 2)}`);
 
       itemsEqual(test, Roles.getRolesForUser(users.eve, {scope: 'scope1', fullObjects: true}), correctRoles1);
 
@@ -2215,22 +2209,6 @@
       test.isFalse(Roles.userIsInRole(users.eve, undefined, {scope: Roles.GLOBAL_SCOPE}, Roles.GLOBAL_SCOPE));
     });
 
-  Tinytest.add(
-    'roles - userIsInRole returns false for unknown roles',
-    function (test) {
-      reset();
-
-      Roles.createRole('admin')
-      Roles.createRole('user')
-      Roles.createRole('editor')
-      Roles.addUsersToRoles(users.eve, ['admin', 'user'])
-      Roles.addUsersToRoles(users.eve, ['editor'])
-
-      test.isFalse(Roles.userIsInRole(users.eve, 'unknown'))
-      test.isFalse(Roles.userIsInRole(users.eve, []))
-      test.isFalse(Roles.userIsInRole(users.eve, null))
-      test.isFalse(Roles.userIsInRole(users.eve, undefined))
-    });
 
   function printException (ex) {
     var tmp = {};
