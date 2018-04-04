@@ -77,7 +77,7 @@
             "tag": "module",
             "file": "roles/roles_common.js",
             "line": 29,
-            "description": "Provides functions related to user authorization. Compatible with built-in Meteor accounts packages.\n\nIt uses `roles` field to `Meteor.users` documents which is an array of subdocuments with the following\nschema:\n - `_id`: role name\n - `scope`: scope name\n - `assigned`: boolean, if the role was manually assigned (set), or was automatically inferred (eg., subroles)\n\nRoles themselves are accessible throgh `Meteor.roles` collection and documents consist of:\n - `_id`: role name\n - `children`: list of subdocuments:\n   - `_id`\n\nChildren list elements are subdocuments so that they can be easier extended in the future or by plugins.\n\nRoles can have multiple parents and can be children (subroles) of multiple roles.\n\nExample: `{_id: \"admin\", children: [{_id: \"editor\"}]}`"
+            "description": "Provides functions related to user authorization. Compatible with built-in Meteor accounts packages.\n\nIt uses `roles` field to `Meteor.users` documents which is an array of subdocuments with the following\nschema:\n - `roleName`: role name\n - `scope`: scope name\n - `assigned`: boolean, if the role was manually assigned (set), or was automatically inferred (eg., subroles)\n\nRoles themselves are accessible throgh `Meteor.roles` collection and documents consist of:\n - `roleName`: role name\n - `children`: list of subdocuments:\n   - `roleName`\n\nChildren list elements are subdocuments so that they can be easier extended in the future or by plugins.\n\nRoles can have multiple parents and can be children (subroles) of multiple roles.\n\nExample: `{roleName: \"admin\", children: [{roleName: \"editor\"}]}`"
         }
     },
     "classes": {
@@ -155,15 +155,14 @@
             "line": 42,
             "description": "Used as a global group (now scope) name. Not used anymore.",
             "itemtype": "property",
-            "name": "GLOBAL_GROUP",
+            "name": "GLOBAL_SCOPE",
             "static": 1,
-            "deprecated": true,
             "class": "Roles",
             "module": "Roles"
         },
         {
             "file": "roles/roles_common.js",
-            "line": 51,
+            "line": 50,
             "description": "Create a new role.",
             "itemtype": "method",
             "name": "createRole",
@@ -175,7 +174,7 @@
                 },
                 {
                     "name": "options",
-                    "description": "Options:\n  - `unlessExists`: if `true`, exception will not be thrown in the role already exists",
+                    "description": "Options:\n  - `unlessExists`: if `true`, exception will not be thrown in the role already exists\n  - scope : the scope of the role",
                     "type": "Object",
                     "optional": true
                 }
@@ -199,6 +198,11 @@
                     "name": "roleName",
                     "description": "Name of role.",
                     "type": "String"
+                },
+                {
+                    "name": "scope",
+                    "description": "Scope of role",
+                    "type": "String"
                 }
             ],
             "static": 1,
@@ -207,7 +211,7 @@
         },
         {
             "file": "roles/roles_common.js",
-            "line": 134,
+            "line": 135,
             "description": "Rename an existing role.",
             "itemtype": "method",
             "name": "renameRole",
@@ -221,6 +225,11 @@
                     "name": "newName",
                     "description": "New name of a role.",
                     "type": "String"
+                },
+                {
+                    "name": "scope",
+                    "description": "scope name for the role.",
+                    "type": "String"
                 }
             ],
             "static": 1,
@@ -229,7 +238,7 @@
         },
         {
             "file": "roles/roles_common.js",
-            "line": 192,
+            "line": 199,
             "description": "Add role parent to roles.\n\nPrevious parents are kept (role can have multiple parents). For users which have the\nparent role set, new subroles are added automatically.",
             "itemtype": "method",
             "name": "addRolesToParent",
@@ -243,6 +252,11 @@
                     "name": "parentName",
                     "description": "Name of parent role.",
                     "type": "String"
+                },
+                {
+                    "name": "scope",
+                    "description": "The scope we're operating in",
+                    "type": "String"
                 }
             ],
             "static": 1,
@@ -251,7 +265,7 @@
         },
         {
             "file": "roles/roles_common.js",
-            "line": 212,
+            "line": 220,
             "itemtype": "method",
             "name": "_addRoleToParent",
             "params": [
@@ -264,6 +278,11 @@
                     "name": "parentName",
                     "description": "Name of parent role.",
                     "type": "String"
+                },
+                {
+                    "name": "scope",
+                    "description": "Scope of both parent and new role",
+                    "type": "String"
                 }
             ],
             "access": "private",
@@ -274,7 +293,7 @@
         },
         {
             "file": "roles/roles_common.js",
-            "line": 296,
+            "line": 309,
             "description": "Remove role parent from roles.\n\nOther parents are kept (role can have multiple parents). For users which have the\nparent role set, removed subrole is removed automatically.",
             "itemtype": "method",
             "name": "removeRolesFromParent",
@@ -288,6 +307,11 @@
                     "name": "parentName",
                     "description": "Name of parent role.",
                     "type": "String"
+                },
+                {
+                    "name": "scope",
+                    "description": "The scope of the roles.",
+                    "type": "String"
                 }
             ],
             "static": 1,
@@ -296,7 +320,7 @@
         },
         {
             "file": "roles/roles_common.js",
-            "line": 316,
+            "line": 330,
             "itemtype": "method",
             "name": "_removeRoleFromParent",
             "params": [
@@ -309,6 +333,11 @@
                     "name": "parentName",
                     "description": "Name of parent role.",
                     "type": "String"
+                },
+                {
+                    "name": "scope",
+                    "description": "The scope of the roles.",
+                    "type": "String"
                 }
             ],
             "access": "private",
@@ -319,7 +348,7 @@
         },
         {
             "file": "roles/roles_common.js",
-            "line": 378,
+            "line": 396,
             "description": "Add users to roles.\n\nAdds roles to existing roles for each user.",
             "example": [
                 "\n    Roles.addUsersToRoles(userId, 'admin')\n    Roles.addUsersToRoles(userId, ['view-secrets'], 'example.com')\n    Roles.addUsersToRoles([user1, user2], ['user','editor'])\n    Roles.addUsersToRoles([user1, user2], ['glorious-admin', 'perform-action'], 'example.org')"
@@ -329,7 +358,7 @@
             "params": [
                 {
                     "name": "users",
-                    "description": "User ID(s) or object(s) with an `_id` field.",
+                    "description": "User ID(s) or object(s) with an `roleName` field.",
                     "type": "Array|String"
                 },
                 {
@@ -350,7 +379,7 @@
         },
         {
             "file": "roles/roles_common.js",
-            "line": 427,
+            "line": 445,
             "description": "Set users' roles.\n\nReplaces all existing roles with a new set of roles.",
             "example": [
                 "\n    Roles.setUserRoles(userId, 'admin')\n    Roles.setUserRoles(userId, ['view-secrets'], 'example.com')\n    Roles.setUserRoles([user1, user2], ['user','editor'])\n    Roles.setUserRoles([user1, user2], ['glorious-admin', 'perform-action'], 'example.org')"
@@ -360,7 +389,7 @@
             "params": [
                 {
                     "name": "users",
-                    "description": "User ID(s) or object(s) with an `_id` field.",
+                    "description": "User ID(s) or object(s) with an `roleName` field.",
                     "type": "Array|String"
                 },
                 {
@@ -381,14 +410,14 @@
         },
         {
             "file": "roles/roles_common.js",
-            "line": 488,
+            "line": 506,
             "description": "Add one user to one role.",
             "itemtype": "method",
             "name": "_addUserToRole",
             "params": [
                 {
                     "name": "user",
-                    "description": "User ID or object with an `_id` field.",
+                    "description": "User ID or object with an `roleName` field.",
                     "type": "String|Object"
                 },
                 {
@@ -414,7 +443,7 @@
         },
         {
             "file": "roles/roles_common.js",
-            "line": 608,
+            "line": 626,
             "description": "Remove users from assigned roles.",
             "example": [
                 "\n    Roles.removeUsersFromRoles(userId, 'admin')\n    Roles.removeUsersFromRoles([userId, user2], ['editor'])\n    Roles.removeUsersFromRoles(userId, ['user'], 'group1')"
@@ -424,7 +453,7 @@
             "params": [
                 {
                     "name": "users",
-                    "description": "User ID(s) or object(s) with an `_id` field.",
+                    "description": "User ID(s) or object(s) with an `roleName` field.",
                     "type": "Array|String"
                 },
                 {
@@ -445,14 +474,14 @@
         },
         {
             "file": "roles/roles_common.js",
-            "line": 655,
+            "line": 673,
             "description": "Remove one user from one role.\n\nWARNING: It leaves user's roles in a possibly inconsistent state. Because we allow the same\nrole to be a child of multiple roles it might happen that it removes some subroles which\nit should not because they are in effect also through some other parent role. You should always\ncall `_assureConsistency` after you are finished with calls to `_removeUserFromRole` for a\nparticular user.",
             "itemtype": "method",
             "name": "_removeUserFromRole",
             "params": [
                 {
                     "name": "user",
-                    "description": "User ID or object with an `_id` field.",
+                    "description": "User ID or object with an `roleName` field.",
                     "type": "String|Object"
                 },
                 {
@@ -474,7 +503,7 @@
         },
         {
             "file": "roles/roles_common.js",
-            "line": 723,
+            "line": 741,
             "description": "Makes sure all subroles are correctly set, and no extra subroles are set which should not be.\n\nUsed internally after complicated changes, but it can also be used whenever one feels that\nthere might be inconsistencies (eg., after a crash).\n\nWe simply re-set to the user their assigned roles again and remove any roles which\nare marked as not explicitly assigned, and have not been part of what we currently set.",
             "itemtype": "method",
             "name": "_assureConsistency",
@@ -493,7 +522,7 @@
         },
         {
             "file": "roles/roles_common.js",
-            "line": 771,
+            "line": 789,
             "description": "Check if user has specified roles.",
             "example": [
                 "\n    // global roles\n    Roles.userIsInRole(user, 'admin')\n    Roles.userIsInRole(user, ['admin','editor'])\n    Roles.userIsInRole(userId, 'admin')\n    Roles.userIsInRole(userId, ['admin','editor'])\n\n    // scope roles (global roles are still checked)\n    Roles.userIsInRole(user, 'admin', 'group1')\n    Roles.userIsInRole(userId, ['admin','editor'], 'group1')\n    Roles.userIsInRole(userId, ['admin','editor'], {scope: 'group1'})"
@@ -528,7 +557,7 @@
         },
         {
             "file": "roles/roles_common.js",
-            "line": 869,
+            "line": 873,
             "description": "Retrieve user's roles.",
             "itemtype": "method",
             "name": "getRolesForUser",
@@ -555,7 +584,7 @@
         },
         {
             "file": "roles/roles_common.js",
-            "line": 919,
+            "line": 923,
             "description": "Retrieve cursor of all existing roles.",
             "itemtype": "method",
             "name": "getAllRoles",
@@ -577,7 +606,7 @@
         },
         {
             "file": "roles/roles_common.js",
-            "line": 934,
+            "line": 938,
             "description": "Retrieve all users who are in target role.\n\nOptions:",
             "itemtype": "method",
             "name": "getUsersInRole",
@@ -610,7 +639,7 @@
         },
         {
             "file": "roles/roles_common.js",
-            "line": 965,
+            "line": 969,
             "itemtype": "method",
             "name": "_usersInRoleQuery",
             "params": [
@@ -644,7 +673,7 @@
         },
         {
             "file": "roles/roles_common.js",
-            "line": 1031,
+            "line": 1026,
             "description": "Deprecated. Use `getScopesForUser` instead.",
             "itemtype": "method",
             "name": "getGroupsForUser",
@@ -655,7 +684,7 @@
         },
         {
             "file": "roles/roles_common.js",
-            "line": 1047,
+            "line": 1042,
             "description": "Retrieve users scopes, if any.",
             "itemtype": "method",
             "name": "getScopesForUser",
@@ -682,7 +711,7 @@
         },
         {
             "file": "roles/roles_common.js",
-            "line": 1079,
+            "line": 1074,
             "description": "Rename a scope.\n\nRoles assigned with a given scope are changed to be under the new scope.",
             "itemtype": "method",
             "name": "renameScope",
@@ -704,7 +733,7 @@
         },
         {
             "file": "roles/roles_common.js",
-            "line": 1112,
+            "line": 1107,
             "description": "Remove a scope.\n\nRoles assigned with a given scope are removed.",
             "itemtype": "method",
             "name": "removeScope",
@@ -721,7 +750,7 @@
         },
         {
             "file": "roles/roles_common.js",
-            "line": 1133,
+            "line": 1128,
             "description": "Resolves the user ID into an actual user object with `roles` field,\nif it is not already.",
             "itemtype": "method",
             "name": "_resolveUser",
@@ -749,29 +778,7 @@
         },
         {
             "file": "roles/roles_common.js",
-            "line": 1159,
-            "itemtype": "method",
-            "name": "_roleMatcher",
-            "params": [
-                {
-                    "name": "roleName",
-                    "description": "A role name to match against.",
-                    "type": "String"
-                }
-            ],
-            "return": {
-                "description": "A matcher function which accepts a role object and returns `true`\n                    if its name matches `roleName`.",
-                "type": "Function"
-            },
-            "access": "private",
-            "tagname": "",
-            "static": 1,
-            "class": "Roles",
-            "module": "Roles"
-        },
-        {
-            "file": "roles/roles_common.js",
-            "line": 1173,
+            "line": 1154,
             "itemtype": "method",
             "name": "_roleAndScopeMatcher",
             "params": [
@@ -798,7 +805,7 @@
         },
         {
             "file": "roles/roles_common.js",
-            "line": 1190,
+            "line": 1171,
             "itemtype": "method",
             "name": "_scopeMatcher",
             "params": [
@@ -820,7 +827,7 @@
         },
         {
             "file": "roles/roles_common.js",
-            "line": 1206,
+            "line": 1187,
             "itemtype": "method",
             "name": "_onlyAssignedMatcher",
             "return": {
@@ -835,7 +842,7 @@
         },
         {
             "file": "roles/roles_common.js",
-            "line": 1219,
+            "line": 1200,
             "description": "Throw an exception if `roleName` is an invalid role name.",
             "itemtype": "method",
             "name": "_checkRoleName",
@@ -854,7 +861,7 @@
         },
         {
             "file": "roles/roles_common.js",
-            "line": 1233,
+            "line": 1214,
             "description": "Normalize options.",
             "itemtype": "method",
             "name": "_normalizeOptions",
@@ -877,7 +884,7 @@
         },
         {
             "file": "roles/roles_common.js",
-            "line": 1254,
+            "line": 1237,
             "description": "Normalize scope name.",
             "itemtype": "method",
             "name": "_normalizeScopeName",
@@ -900,7 +907,7 @@
         },
         {
             "file": "roles/roles_common.js",
-            "line": 1273,
+            "line": 1256,
             "description": "Throw an exception if `scopeName` is an invalid scope name.",
             "itemtype": "method",
             "name": "_checkRoleName",
@@ -919,7 +926,7 @@
         },
         {
             "file": "roles/roles_common.js",
-            "line": 1289,
+            "line": 1272,
             "params": [
                 {
                     "name": "string",
@@ -939,7 +946,7 @@
         },
         {
             "file": "roles/roles_server.js",
-            "line": 27,
+            "line": 29,
             "itemtype": "method",
             "name": "_isNewRole",
             "params": [
@@ -961,7 +968,7 @@
         },
         {
             "file": "roles/roles_server.js",
-            "line": 40,
+            "line": 42,
             "itemtype": "method",
             "name": "_isOldRole",
             "params": [
@@ -983,7 +990,7 @@
         },
         {
             "file": "roles/roles_server.js",
-            "line": 53,
+            "line": 55,
             "itemtype": "method",
             "name": "_isNewField",
             "params": [
@@ -1005,7 +1012,7 @@
         },
         {
             "file": "roles/roles_server.js",
-            "line": 66,
+            "line": 68,
             "itemtype": "method",
             "name": "_isOldField",
             "params": [
@@ -1027,7 +1034,7 @@
         },
         {
             "file": "roles/roles_server.js",
-            "line": 79,
+            "line": 81,
             "itemtype": "method",
             "name": "_convertToNewRole",
             "params": [
@@ -1049,7 +1056,7 @@
         },
         {
             "file": "roles/roles_server.js",
-            "line": 96,
+            "line": 99,
             "itemtype": "method",
             "name": "_convertToOldRole",
             "params": [
@@ -1071,7 +1078,7 @@
         },
         {
             "file": "roles/roles_server.js",
-            "line": 112,
+            "line": 115,
             "itemtype": "method",
             "name": "_convertToNewField",
             "params": [
@@ -1098,7 +1105,7 @@
         },
         {
             "file": "roles/roles_server.js",
-            "line": 158,
+            "line": 161,
             "itemtype": "method",
             "name": "_convertToOldField",
             "params": [
@@ -1125,7 +1132,7 @@
         },
         {
             "file": "roles/roles_server.js",
-            "line": 207,
+            "line": 210,
             "itemtype": "method",
             "name": "_defaultUpdateUser",
             "params": [
@@ -1148,7 +1155,7 @@
         },
         {
             "file": "roles/roles_server.js",
-            "line": 225,
+            "line": 228,
             "itemtype": "method",
             "name": "_defaultUpdateRole",
             "params": [
@@ -1171,7 +1178,7 @@
         },
         {
             "file": "roles/roles_server.js",
-            "line": 238,
+            "line": 241,
             "itemtype": "method",
             "name": "_dropCollectionIndex",
             "params": [
@@ -1194,7 +1201,7 @@
         },
         {
             "file": "roles/roles_server.js",
-            "line": 255,
+            "line": 258,
             "description": "Migrates `Meteor.users` and `Meteor.roles` to the new format.",
             "itemtype": "method",
             "name": "_forwardMigrate",
@@ -1223,7 +1230,7 @@
         },
         {
             "file": "roles/roles_server.js",
-            "line": 285,
+            "line": 288,
             "description": "Migrates `Meteor.users` and `Meteor.roles` to the old format.\n\nWe assume that we are converting back a failed migration, so values can only be\nwhat were valid values in the old format. So no group names starting with `$` and\nno subroles.",
             "itemtype": "method",
             "name": "_backwardMigrate",
@@ -1254,7 +1261,7 @@
     "warnings": [
         {
             "message": "Missing item type",
-            "line": " roles/roles_common.js:1289"
+            "line": " roles/roles_common.js:1272"
         }
     ]
 }

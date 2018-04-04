@@ -37,7 +37,7 @@ Roles._uiHelpers = {
    *
    * @method isInRole
    * @param {String} role Name of role or comma-seperated list of roles.
-   * @param {String} [scope] Optional, name of scope to check.
+   * @param {String} scope name of scope to check.
    * @return {Boolean} `true` if current user is in at least one of the target roles.
    * @static
    * @for UIHelpers 
@@ -45,17 +45,17 @@ Roles._uiHelpers = {
   isInRole: function (role, scope) {
     var user = Meteor.user(),
         comma = (role || '').indexOf(','),
-        roles
+        roles;
 
-    if (!user) return false
-    if (!Match.test(role, String)) return false
+    if (!user) return false;
+    if (!Match.test(role, String)) return false;
 
     if (comma !== -1) {
       roles = _.reduce(role.split(','), function (memo, r) {
         if (!r || !Roles._trim(r)) {
           return memo
         }
-        memo.push(Roles._trim(r))
+        memo.push(Roles._trim(r));
         return memo
       }, [])
     } else {
@@ -64,11 +64,12 @@ Roles._uiHelpers = {
 
     if (Match.test(scope, String)) {
       return Roles.userIsInRole(user, roles, scope)
+    } else {
+      throw new Meteor.Error("no scope provided to isInRole ui helper")
     }
 
-    return Roles.userIsInRole(user, roles)
   }
-}
+};
 
 
 

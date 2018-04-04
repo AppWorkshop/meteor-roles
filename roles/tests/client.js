@@ -9,23 +9,23 @@
     'eve': {
       _id: 'eve',
       roles: [{
-        _id: 'admin',
-        scope: null,
+        roleName: 'admin',
+        scope: Roles.GLOBAL_SCOPE,
         assigned: true
       }, {
-        _id: 'editor',
-        scope: null,
+        roleName: 'editor',
+        scope: Roles.GLOBAL_SCOPE,
         assigned: true
       }]
     },
     'bob': {
       _id: 'bob',
       roles: [{
-        _id: 'user',
+        roleName: 'user',
         scope: 'group1',
         assigned: true
       }, {
-        _id: 'editor',
+        roleName: 'editor',
         scope: 'group2',
         assigned: true
       }]
@@ -33,11 +33,15 @@
     'joe': {
       _id: 'joe',
       roles: [{
-        _id: 'admin',
-        scope: null,
+        roleName: 'admin',
+        scope: Roles.GLOBAL_SCOPE,
         assigned: true
       }, {
-        _id: 'editor',
+        roleName: 'admin',
+        scope: 'group1',
+        assigned: true
+      }, {
+        roleName: 'editor',
         scope: 'group1',
         assigned: true
       }]
@@ -74,32 +78,32 @@
           expected,
           actual;
 
-      if (!Roles._handlebarsHelpers) {
+      if (!Roles._uiHelpers) {
         // probably running package tests outside of a Meteor app.
         // skip this test.
         return
       }
 
-      isInRole = Roles._handlebarsHelpers.isInRole;
+      isInRole = Roles._uiHelpers.isInRole;
       test.equal(typeof isInRole, 'function', "'isInRole' helper not registered");
 
       expected = true;
-      actual = isInRole('admin, editor');
+      actual = isInRole('admin, editor', Roles.GLOBAL_SCOPE);
       test.equal(actual, expected);
       
       expected = true;
-      actual = isInRole('admin');
+      actual = isInRole('admin', Roles.GLOBAL_SCOPE);
       test.equal(actual, expected);
 
       expected = false;
-      actual = isInRole('unknown');
+      actual = isInRole('unknown', Roles.GLOBAL_SCOPE);
       test.equal(actual, expected);
     });
 
   Tinytest.add(
     'roles - can check if user is in role', 
     function (test) {
-      testUser(test, 'eve', ['admin', 'editor']);
+      testUser(test, 'eve', ['admin', 'editor'], Roles.GLOBAL_SCOPE);
     });
 
   Tinytest.add(
@@ -112,8 +116,8 @@
   Tinytest.add(
     'roles - can check if user is in role with Roles.GLOBAL_GROUP', 
     function (test) {
-      testUser(test, 'joe', ['admin']);
-      testUser(test, 'joe', ['admin'], Roles.GLOBAL_GROUP);
+      // testUser(test, 'joe', ['admin']);
+      testUser(test, 'joe', ['admin'], Roles.GLOBAL_SCOPE);
       testUser(test, 'joe', ['admin', 'editor'], 'group1');
     });
 

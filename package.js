@@ -1,8 +1,8 @@
 Package.describe({
   summary: "Authorization package for Meteor",
-  version: "1.2.14",
-  git: "https://github.com/alanning/meteor-roles.git",
-  name: "alanning:roles"
+  version: "2.0.0",
+  git: "https://github.com/AppWorkshop/meteor-roles.git",
+  name: "appworkshop:roles"
 });
 
 Package.onUse(function (api) {
@@ -10,7 +10,8 @@ Package.onUse(function (api) {
 
   api.versionsFrom("METEOR@1.4.1");
 
-  api.use(['underscore',
+  api.use(['ecmascript',
+           'underscore',
            'accounts-base',
            'tracker',
            'mongo',

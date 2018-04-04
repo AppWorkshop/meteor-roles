@@ -5,20 +5,20 @@
  *
  * It uses `roles` field to `Meteor.users` documents which is an array of subdocuments with the following
  * schema:
- *  - `_id`: role name
+ *  - `roleName`: role name
  *  - `scope`: scope name
  *  - `assigned`: boolean, if the role was manually assigned (set), or was automatically inferred (eg., subroles)
  *
  * Roles themselves are accessible throgh `Meteor.roles` collection and documents consist of:
- *  - `_id`: role name
+ *  - `roleName`: role name
  *  - `children`: list of subdocuments:
- *    - `_id`
+ *    - `roleName`
  *
  * Children list elements are subdocuments so that they can be easier extended in the future or by plugins.
  *
  * Roles can have multiple parents and can be children (subroles) of multiple roles.
  *
- * Example: `{_id: "admin", children: [{_id: "editor"}]}`
+ * Example: `{roleName: "admin", children: [{roleName: "editor"}]}`
  *
  * @module Roles
  */
@@ -42,11 +42,10 @@ _.extend(Roles, {
   /**
    * Used as a global group (now scope) name. Not used anymore.
    *
-   * @property GLOBAL_GROUP
+   * @property GLOBAL_SCOPE
    * @static
-   * @deprecated
    */
-  GLOBAL_GROUP: null,
+  GLOBAL_SCOPE: '__global_roles__',
 
   /**
    * Create a new role.
@@ -55,6 +54,7 @@ _.extend(Roles, {
    * @param {String} roleName Name of role.
    * @param {Object} [options] Options:
    *   - `unlessExists`: if `true`, exception will not be thrown in the role already exists
+   *   - scope : the scope of the role
    * @return {String} ID of the new role.
    * @static
    */
@@ -69,7 +69,7 @@ _.extend(Roles, {
       unlessExists: false
     });
 
-    var result = Meteor.roles.upsert({_id: roleName}, {$setOnInsert: {children: []}});
+    var result = Meteor.roles.upsert({roleName: roleName, scope: options.scope}, {$setOnInsert: {children: []}});
 
     if (!result.insertedId) {
       if (options.unlessExists) return null;
@@ -86,9 +86,10 @@ _.extend(Roles, {
    *
    * @method deleteRole
    * @param {String} roleName Name of role.
+   * @param {String} scope Scope of role
    * @static
    */
-  deleteRole: function (roleName) {
+  deleteRole: function (roleName, scope) {
     var roles;
 
     Roles._checkRoleName(roleName);
@@ -98,23 +99,23 @@ _.extend(Roles, {
     Meteor.roles.update({}, {
       $pull: {
         children: {
-          _id: roleName
+          roleName: roleName
         }
       }
     }, {multi: true});
 
     Roles.getUsersInRole(roleName, {
-      anyScope: true,
+      scope: scope,
       queryOptions: {
         fields: {
-          _id: 1,
+          roleName: 1,
           roles: 1
         }
       }
     }).forEach(function (user, index, cursor) {
       // role can be assigned multiple times to the user, for multiple scopes
       // we have to remove the role for each of those scopes
-      roles = _.filter(user.roles, Roles._roleMatcher(roleName));
+      roles = _.filter(user.roles, Roles._roleAndScopeMatcher(roleName, scope));
       _.each(roles, function (role) {
         Roles._removeUserFromRole(user, roleName, {
           scope: role.scope,
@@ -128,7 +129,7 @@ _.extend(Roles, {
     });
 
     // remove the role itself
-    Meteor.roles.remove({_id: roleName});
+    Meteor.roles.remove({roleName: roleName});
   },
 
   /**
@@ -137,37 +138,42 @@ _.extend(Roles, {
    * @method renameRole
    * @param {String} oldName Old name of a role.
    * @param {String} newName New name of a role.
+   * @param {String} scope scope name for the role.
    * @static
    */
-  renameRole: function (oldName, newName) {
+  renameRole: function (oldName, newName, scope) {
     var role,
         count;
 
     Roles._checkRoleName(oldName);
     Roles._checkRoleName(newName);
+    Roles._checkScopeName(scope);
 
     if (oldName === newName) return;
 
-    role = Meteor.roles.findOne({_id: oldName});
+    role = Meteor.roles.findOne({roleName: oldName, scope: scope});
 
     if (!role) {
-      throw new Error("Role '" + oldName + "' does not exist.");
+      throw new Error("Role '" + oldName + "' does not exist for scope '" + scope + "'.");
     }
 
-    role._id = newName;
+    role.roleName = newName;
+    delete role["_id"]; // get rid of _id property so we're not inserting a duplicate
 
     Meteor.roles.insert(role);
 
     do {
+      // console.log(`Users with scope ${scope} : ${JSON.stringify(Meteor.users.find({roles: {$elemMatch: {roleName: oldName,scope: scope}}}).fetch())}`)
       count = Meteor.users.update({
         roles: {
           $elemMatch: {
-            _id: oldName
+            roleName: oldName,
+            scope: scope
           }
         }
       }, {
         $set: {
-          'roles.$._id': newName
+          'roles.$.roleName': newName
         }
       }, {multi: true});
     } while (count > 0);
@@ -176,17 +182,18 @@ _.extend(Roles, {
       count = Meteor.roles.update({
         children: {
           $elemMatch: {
-            _id: oldName
+            roleName: oldName,
+            scope: scope
           }
         }
       }, {
         $set: {
-          'children.$._id': newName
+          'children.$.roleName': newName
         }
       }, {multi: true});
     } while (count > 0);
 
-    Meteor.roles.remove({_id: oldName});
+    Meteor.roles.remove({roleName: oldName, scope: scope});
   },
 
   /**
@@ -198,14 +205,15 @@ _.extend(Roles, {
    * @method addRolesToParent
    * @param {Array|String} rolesNames Name(s) of role(s).
    * @param {String} parentName Name of parent role.
+   * @param {String} scope The scope we're operating in
    * @static
    */
-  addRolesToParent: function (rolesNames, parentName) {
+  addRolesToParent: function (rolesNames, parentName, scope) {
     // ensure arrays
     if (!_.isArray(rolesNames)) rolesNames = [rolesNames];
 
     _.each(rolesNames, function (roleName) {
-      Roles._addRoleToParent(roleName, parentName);
+      Roles._addRoleToParent(roleName, parentName, scope);
     });
   },
 
@@ -213,10 +221,11 @@ _.extend(Roles, {
    * @method _addRoleToParent
    * @param {String} roleName Name of role.
    * @param {String} parentName Name of parent role.
+   * @param {String} scope Scope of both parent and new role
    * @private
    * @static
    */
-  _addRoleToParent: function (roleName, parentName) {
+  _addRoleToParent: function (roleName, parentName, scope) {
     var role,
         count,
         parentRoles,
@@ -227,17 +236,18 @@ _.extend(Roles, {
 
     Roles._checkRoleName(roleName);
     Roles._checkRoleName(parentName);
+    Roles._checkScopeName(scope);
 
     // query to get role's children
-    role = Meteor.roles.findOne({_id: roleName});
+    role = Meteor.roles.findOne({roleName: roleName, scope: scope});
 
     if (!role) {
-      throw new Error("Role '" + roleName + "' does not exist.");
+      throw new Error("Role '" + roleName + "' does not exist in scope '" + scope + "'.");
     }
 
     // detect cycles
     alreadyCheckedRoles = [];
-    rolesToCheck = _.pluck(role.children, '_id');
+    rolesToCheck = _.pluck(role.children, 'roleName');
     while (rolesToCheck.length) {
       checkRoleName = rolesToCheck.pop();
       if (checkRoleName === parentName) {
@@ -245,23 +255,25 @@ _.extend(Roles, {
       }
       alreadyCheckedRoles.push(checkRoleName);
 
-      checkRole = Meteor.roles.findOne({_id: checkRoleName});
+      checkRole = Meteor.roles.findOne({roleName: checkRoleName, scope: scope});
 
       // This should not happen, but this is a problem to address at some other time.
       if (!checkRole) continue;
 
-      rolesToCheck = _.union(rolesToCheck, _.difference(_.pluck(checkRole.children, '_id'), alreadyCheckedRoles));
+      rolesToCheck = _.union(rolesToCheck, _.difference(_.pluck(checkRole.children, 'roleName'), alreadyCheckedRoles));
     }
 
     count = Meteor.roles.update({
-      _id: parentName,
-      'children._id': {
-        $ne: role._id
+      roleName: parentName,
+      scope: scope,
+      'children.roleName': {
+        $ne: role.roleName
       }
     }, {
       $addToSet: {
         children: {
-          _id: role._id
+          roleName: role.roleName,
+          scope: scope
         }
       }
     });
@@ -271,17 +283,18 @@ _.extend(Roles, {
     if (!count) return;
 
     Roles.getUsersInRole(parentName, {
-      anyScope: true,
+      scope: scope,
       queryOptions: {
         fields: {
-          _id: 1,
-          roles: 1
+          roleName: 1,
+          roles: 1,
+          scope: 1
         }
       }
     }).forEach(function (user, index, cursor) {
       // parent role can be assigned multiple times to the user, for multiple scopes
       // we have to assign a new subrole for each of those scopes
-      parentRoles = _.filter(user.roles, Roles._roleMatcher(parentName));
+      parentRoles = _.filter(user.roles, Roles._roleAndScopeMatcher(parentName, scope));
       _.each(parentRoles, function (parentRole) {
         Roles._addUserToRole(user, roleName, {
           scope: parentRole.scope,
@@ -302,14 +315,15 @@ _.extend(Roles, {
    * @method removeRolesFromParent
    * @param {Array|String} rolesNames Name(s) of role(s).
    * @param {String} parentName Name of parent role.
+   * @param {String} scope The scope of the roles.
    * @static
    */
-  removeRolesFromParent: function (rolesNames, parentName) {
+  removeRolesFromParent: function (rolesNames, parentName, scope) {
     // ensure arrays
     if (!_.isArray(rolesNames)) rolesNames = [rolesNames];
 
     _.each(rolesNames, function (roleName) {
-      Roles._removeRoleFromParent(roleName, parentName);
+      Roles._removeRoleFromParent(roleName, parentName, scope);
     });
   },
 
@@ -317,31 +331,35 @@ _.extend(Roles, {
    * @method _removeRoleFromParent
    * @param {String} roleName Name of role.
    * @param {String} parentName Name of parent role.
+   * @param {String} scope The scope of the roles.
    * @private
    * @static
    */
-  _removeRoleFromParent: function (roleName, parentName) {
+  _removeRoleFromParent: function (roleName, parentName, scope) {
     var role,
         count,
         parentRoles;
 
     Roles._checkRoleName(roleName);
     Roles._checkRoleName(parentName);
+    Roles._checkScopeName(scope);
 
     // check for role existence
     // this would not really be needed, but we are trying to match addRolesToParent
-    role = Meteor.roles.findOne({_id: roleName}, {fields: {_id: 1}});
+    role = Meteor.roles.findOne({roleName: roleName, scope: scope}, {fields: {roleName: 1}});
 
     if (!role) {
-      throw new Error("Role '" + roleName + "' does not exist.");
+      throw new Error("Role '" + roleName + "' does not exist for scope '" + scope + "'.");
     }
 
     count = Meteor.roles.update({
-      _id: parentName
+      roleName: parentName,
+      scope: scope
     }, {
       $pull: {
         children: {
-          _id: role._id
+          roleName: role.roleName,
+          scope: scope
         }
       }
     });
@@ -351,7 +369,7 @@ _.extend(Roles, {
     if (!count) return;
 
     Roles.getUsersInRole(parentName, {
-      anyScope: true,
+      scope: scope,
       queryOptions: {
         fields: {
           _id: 1,
@@ -361,7 +379,7 @@ _.extend(Roles, {
     }).forEach(function (user, index, cursor) {
       // parent role can be assigned multiple times to the user, for multiple scopes
       // we have to remove the subrole for each of those scopes
-      parentRoles = _.filter(user.roles, Roles._roleMatcher(parentName));
+      parentRoles = _.filter(user.roles, Roles._roleAndScopeMatcher(parentName, scope));
       _.each(parentRoles, function (parentRole) {
         Roles._removeUserFromRole(user, roleName, {
           scope: parentRole.scope,
@@ -387,7 +405,7 @@ _.extend(Roles, {
    *     Roles.addUsersToRoles([user1, user2], ['glorious-admin', 'perform-action'], 'example.org')
    *
    * @method addUsersToRoles
-   * @param {Array|String} users User ID(s) or object(s) with an `_id` field.
+   * @param {Array|String} users User ID(s) or object(s) with an `roleName` field.
    * @param {Array|String} roles Name(s) of roles to add users to. Roles have to exist.
    * @param {Object|String} [options] Options:
    *   - `scope`: name of the scope, or `null` for the global role
@@ -436,7 +454,7 @@ _.extend(Roles, {
    *     Roles.setUserRoles([user1, user2], ['glorious-admin', 'perform-action'], 'example.org')
    *
    * @method setUserRoles
-   * @param {Array|String} users User ID(s) or object(s) with an `_id` field.
+   * @param {Array|String} users User ID(s) or object(s) with an `roleName` field.
    * @param {Array|String} roles Name(s) of roles to add users to. Roles have to exist.
    * @param {Object|String} [options] Options:
    *   - `scope`: name of the scope, or `null` for the global role
@@ -489,7 +507,7 @@ _.extend(Roles, {
    * Add one user to one role.
    *
    * @method _addUserToRole
-   * @param {String|Object} user User ID or object with an `_id` field.
+   * @param {String|Object} user User ID or object with an `roleName` field.
    * @param {String} roleName Name of the role to add the user to. The role have to exist.
    * @param {Object} options Options:
    *   - `scope`: name of the scope, or `null` for the global role
@@ -503,7 +521,7 @@ _.extend(Roles, {
    * @static
    */
   _addUserToRole: function (user, roleName, options) {
-    var id,
+    var userID,
         role,
         count,
         setRoles;
@@ -512,32 +530,32 @@ _.extend(Roles, {
     Roles._checkScopeName(options.scope);
 
     if (_.isObject(user)) {
-      id = user._id;
+      userID = user._id;
     }
     else {
-      id = user;
+      userID = user;
     }
 
-    if (!id) return [];
+    if (!userID) return [];
 
-    role = Meteor.roles.findOne({_id: roleName}, {fields: {children: 1}});
+    role = Meteor.roles.findOne({roleName: roleName, scope: options.scope}, {fields: {children: 1}});
 
     if (!role) {
       if (options.ifExists) {
         return [];
       }
       else {
-        throw new Error("Role '" + roleName + "' does not exist.");
+        throw new Error("Role '" + roleName + "' does not exist in scope '" + options.scope + "'.");
       }
     }
 
     // add new role if it is not already added
     count = Meteor.users.update({
-      _id: id,
+      _id: userID,
       roles: {
         $not: {
           $elemMatch: {
-            _id: roleName,
+            roleName: roleName,
             scope: options.scope
           }
         }
@@ -546,7 +564,7 @@ _.extend(Roles, {
     }, {
       $addToSet: {
         roles: {
-          _id: roleName,
+          roleName: roleName,
           scope: options.scope,
           // we want to make sure it is a boolean value
           assigned: !!options._assigned
@@ -559,10 +577,10 @@ _.extend(Roles, {
       if (options._assigned) {
         // let's make sure it is set as assigned
         Meteor.users.update({
-          _id: id,
+          _id: userID,
           roles: {
             $elemMatch: {
-              _id: roleName,
+              roleName: roleName,
               scope: options.scope
             }
           }
@@ -576,10 +594,10 @@ _.extend(Roles, {
       else if (options._assigned === false) {
         // let's make sure it is set as unassigned
         Meteor.users.update({
-          _id: id,
+          _id: userID,
           roles: {
             $elemMatch: {
-              _id: roleName,
+              roleName: roleName,
               scope: options.scope
             }
           }
@@ -593,13 +611,13 @@ _.extend(Roles, {
     }
 
     setRoles = [{
-      _id: roleName,
+      roleName: roleName,
       scope: options.scope
     }];
 
     _.each(role.children, function (child) {
       // subroles are set as unassigned, but only if they do not already exist
-      setRoles = setRoles.concat(Roles._addUserToRole(user, child._id, _.extend({}, options, {_assigned: null})));
+      setRoles = setRoles.concat(Roles._addUserToRole(user, child.roleName, _.extend({}, options, {_assigned: null})));
     });
 
     return setRoles;
@@ -614,7 +632,7 @@ _.extend(Roles, {
    *     Roles.removeUsersFromRoles(userId, ['user'], 'group1')
    *
    * @method removeUsersFromRoles
-   * @param {Array|String} users User ID(s) or object(s) with an `_id` field.
+   * @param {Array|String} users User ID(s) or object(s) with an `roleName` field.
    * @param {Array|String} roles Name(s) of roles to add users to. Roles have to exist.
    * @param {Object|String} [options] Options:
    *   - `scope`: name of the scope, or `null` for the global role
@@ -662,7 +680,7 @@ _.extend(Roles, {
    * particular user.
    *
    * @method _removeUserFromRole
-   * @param {String|Object} user User ID or object with an `_id` field.
+   * @param {String|Object} user User ID or object with an `roleName` field.
    * @param {String} roleName Name of the role to add the user to. The role have to exist.
    * @param {Object} options Options:
    *   - `scope`: name of the scope, or `null` for the global role
@@ -693,7 +711,7 @@ _.extend(Roles, {
     update = {
       $pull: {
         roles: {
-          _id: roleName,
+          roleName: roleName,
           scope: options.scope
         }
       }
@@ -709,14 +727,14 @@ _.extend(Roles, {
     // we try to remove the role in every case, whether the role really exists or not
     Meteor.users.update(id, update);
 
-    role = Meteor.roles.findOne({_id: roleName}, {fields: {children: 1}});
+    role = Meteor.roles.findOne({roleName: roleName}, {fields: {children: 1}});
 
     // role does not exist, we do not anything more
     if (!role) return;
 
     _.each(role.children, function (child) {
       // if a child role has been assigned explicitly, we do not remove it
-      Roles._removeUserFromRole(user, child._id, _.extend({}, options, {_assigned: false}));
+      Roles._removeUserFromRole(user, child.roleName, _.extend({}, options, {_assigned: false}));
     });
   },
 
@@ -746,7 +764,7 @@ _.extend(Roles, {
 
     setRoles = [];
     _.each(roles, function (role) {
-      setRoles = setRoles.concat(Roles._addUserToRole(user, role._id, {
+      setRoles = setRoles.concat(Roles._addUserToRole(user, role.roleName, {
         scope: role.scope,
         _assigned: role.assigned, // this is true
         ifExists: true
@@ -758,13 +776,13 @@ _.extend(Roles, {
       Meteor.users.update(user._id, {
         $pull: {
           roles: {
-            $nor: _.map(setRoles, function (role) {return _.pick(role, '_id', 'scope')})
+            $nor: _.map(setRoles, function (role) {return _.pick(role, 'roleName', 'scope')})
           }
         }
       });
     }
     else {
-      Meteor.users.update(user._id, {$set: {roles: []}});
+      Meteor.users.update(user.roleName, {$set: {roles: []}});
     }
   },
 
@@ -798,7 +816,7 @@ _.extend(Roles, {
    * @static
    */
   userIsInRole: function (user, roles, options) {
-    var id,
+    var userID,
         query;
 
     options = Roles._normalizeOptions(options);
@@ -819,35 +837,30 @@ _.extend(Roles, {
     if (_.isObject(user)) {
       if (_.has(user, 'roles')) {
         return _.some(roles, function (role) {
-          if (options.anyScope) {
-            return _.some(user.roles || [], Roles._roleMatcher(role));
-          }
-          else {
-            return _.some(user.roles || [], Roles._roleAndScopeMatcher(role, options.scope));
-          }
+          return _.some(user.roles || [], Roles._roleAndScopeMatcher(role, options.scope));
         })
       } else {
         // missing roles field, try going direct via id
-        id = user._id;
+        userID = user._id;
       }
     } else {
-      id = user;
+      userID = user;
     }
 
-    if (!id) return false;
+    if (!userID) return false;
 
     if (options.anyScope) {
       query = {
-        _id: id,
-        'roles._id': {$in: roles}
+        _id: userID,
+        'roles.roleName': {$in: roles}
       };
     }
     else {
       query = {
-        _id: id,
+        _id: userID,
         roles: {
           $elemMatch: {
-            _id: {$in: roles},
+            roleName: {$in: roles},
             scope: {$in: [options.scope, null]}
           }
         }
@@ -904,7 +917,7 @@ _.extend(Roles, {
       return roles;
     }
 
-    return _.uniq(_.pluck(roles, '_id'));
+    return _.uniq(_.pluck(roles, 'roleName'));
   },
 
   /**
@@ -917,7 +930,7 @@ _.extend(Roles, {
    * @static
    */
   getAllRoles: function (queryOptions) {
-    queryOptions = queryOptions || {sort: {_id: 1}};
+    queryOptions = queryOptions || {sort: {roleName: 1}};
 
     return Meteor.roles.find({}, queryOptions);
   },
@@ -988,16 +1001,16 @@ _.extend(Roles, {
       anyScope: false
     });
 
-    if (options.anyScope) {
+    if (options.anyScope) { console.log("anyScope true");
       query = {
-        'roles._id': {$in: roles}
+        'roles.roleName': {$in: roles}
       };
     }
     else {
       query = {
         roles: {
           $elemMatch: {
-            _id: {$in: roles},
+            roleName: {$in: roles},
             scope: {$in: [options.scope, null]}
           }
         }
@@ -1050,7 +1063,7 @@ _.extend(Roles, {
     _.each(user.roles || [], function (userRole) {
       // == used on purpose.
       if (userRole.scope == null) return;
-      if (roles && !_.contains(roles, userRole._id)) return;
+      if (roles && !_.contains(roles, userRole.roleName)) return;
 
       scopes.push(userRole.scope);
     });
@@ -1139,20 +1152,6 @@ _.extend(Roles, {
   },
 
   /**
-   * @method _roleMatcher
-   * @param {String} roleName A role name to match against.
-   * @return {Function} A matcher function which accepts a role object and returns `true`
-   *                     if its name matches `roleName`.
-   * @private
-   * @static
-   */
-  _roleMatcher: function (roleName) {
-    return function (userRole) {
-      return userRole._id === roleName;
-    };
-  },
-
-  /**
    * @method _roleAndScopeMatcher
    * @param {String} roleName A role name to match against.
    * @param {String} scope A scope to match against.
@@ -1164,8 +1163,8 @@ _.extend(Roles, {
   _roleAndScopeMatcher: function (roleName, scope) {
     return function (userRole) {
       // == used on purpose in "userRole.scope == null"
-      return (userRole._id === roleName && userRole.scope === scope) ||
-        (userRole._id === roleName && (!_.has(userRole, 'scope') || userRole.scope == null));
+      return (userRole.roleName === roleName && userRole.scope === scope) ||
+        (userRole.roleName === roleName && (!_.has(userRole, 'scope') || userRole.scope == null));
     };
   },
 
@@ -1226,6 +1225,8 @@ _.extend(Roles, {
 
     if (options === null || _.isString(options)) {
       options = {scope: options};
+    } else if (!_.isObject(options)) {
+      throw new Meteor.Error(`invalid options passed : ${options}`);
     }
 
     options.scope = Roles._normalizeScopeName(options.scope);
@@ -1244,8 +1245,8 @@ _.extend(Roles, {
    */
   _normalizeScopeName: function (scopeName) {
     // map undefined and null to null
-    if (scopeName == null) {
-      return null;
+    if (scopeName === null || scopeName === undefined) {
+      throw new Error("No scope name provided: " + scopeName);
     }
     else {
       return scopeName;
@@ -1261,7 +1262,7 @@ _.extend(Roles, {
    * @static
    */
   _checkScopeName: function (scopeName) {
-    if (scopeName === null) return;
+    if (scopeName === null) throw new Error("Invalid scope name");
 
     if (!scopeName || !_.isString(scopeName) || Roles._trim(scopeName) !== scopeName) {
       throw new Error("Invalid scope name '" + scopeName + "'.");

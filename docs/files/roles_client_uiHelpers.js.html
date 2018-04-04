@@ -130,17 +130,17 @@ Roles._uiHelpers = {
   isInRole: function (role, scope) {
     var user = Meteor.user(),
         comma = (role || &#x27;&#x27;).indexOf(&#x27;,&#x27;),
-        roles
+        roles;
 
-    if (!user) return false
-    if (!Match.test(role, String)) return false
+    if (!user) return false;
+    if (!Match.test(role, String)) return false;
 
     if (comma !== -1) {
       roles = _.reduce(role.split(&#x27;,&#x27;), function (memo, r) {
         if (!r || !Roles._trim(r)) {
           return memo
         }
-        memo.push(Roles._trim(r))
+        memo.push(Roles._trim(r));
         return memo
       }, [])
     } else {
@@ -149,11 +149,12 @@ Roles._uiHelpers = {
 
     if (Match.test(scope, String)) {
       return Roles.userIsInRole(user, roles, scope)
+    } else {
+      throw new Meteor.Error(&quot;no scope provided to isInRole ui helper&quot;)
     }
 
-    return Roles.userIsInRole(user, roles)
   }
-}
+};
 
 
 

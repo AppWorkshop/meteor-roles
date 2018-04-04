@@ -1,7 +1,12 @@
 meteor-roles
 ============
 
-Authorization package for Meteor - compatible with built-in accounts package.
+Authorization package for Meteor - compatible with built-in accounts package. **_NOTE:_** This is a fork of 
+[alanning:roles v2 branch](https://github.com/alanning/meteor-roles/tree/v2.0), with the following changes:
+
+* Scopes are mandatory (which means this is not backwards-compatible with v1 although migration is easy).
+* Role names must be unique within a scope, but don't need to be globally unique. E.g. `{roleName: 'CEO', scope: 'Microsoft'}`
+ and `{roleName: 'CEO', scope: 'Amazon'}` can co-exist.  
 
 <br />
 
@@ -27,6 +32,7 @@ Authorization package for Meteor - compatible with built-in accounts package.
 
 Thanks to:
 
+  * [@alanning](https://github.com/alanning)
   * [@mitar](https://github.com/mitar)
   * [@challett](https://github.com/challett)
   * [@ianserlin](https://github.com/ianserlin)
@@ -40,7 +46,6 @@ Thanks to:
   * [@pascoual](https://github.com/pascoual)
   * [@nickmoylan](https://github.com/nickmoylan)
   * [@mcrider](https://github.com/mcrider)
-  * [@alanning](https://github.com/alanning)
 
 <br />
 
@@ -78,13 +83,13 @@ change permissions later for the whole role, just add or remove children roles. 
 with:
 
 ```javascript
-Roles.createRole('user');
-Roles.createRole('admin');
-Roles.createRole('USERS_VIEW');
-Roles.createRole('POST_EDIT');
-Roles.addRolesToParent('USERS_VIEW', 'admin');
-Roles.addRolesToParent('POST_EDIT', 'admin');
-Roles.addRolesToParent('POST_EDIT', 'user');
+Roles.createRole('user', Roles.GLOBAL_SCOPE);
+Roles.createRole('admin', Roles.GLOBAL_SCOPE);
+Roles.createRole('USERS_VIEW', Roles.GLOBAL_SCOPE);
+Roles.createRole('POST_EDIT', Roles.GLOBAL_SCOPE);
+Roles.addRolesToParent('USERS_VIEW', 'admin', Roles.GLOBAL_SCOPE);
+Roles.addRolesToParent('POST_EDIT', 'admin', Roles.GLOBAL_SCOPE);
+Roles.addRolesToParent('POST_EDIT', 'user', Roles.GLOBAL_SCOPE);
 ```
 
 <br />
@@ -118,11 +123,13 @@ Now, let's take a look at how to use the global roles. Say we want to give Joe p
 all of our scopes. That is what the global roles are for:
 
 ```javascript
-Roles.addUsersToRoles(joesUserId, 'super-admin', null); // Or you could just omit the last argument.
+Roles.addUsersToRoles(joesUserId, 'super-admin', Roles.GLOBAL_SCOPE); // Scopes are mandatory!
 
 if (Roles.userIsInRole(joesUserId, ['manage-team', 'super-admin'], 'real-madrid.com')) {
-  // True! Even though Joe doesn't manage Real Madrid, he has
-  // a 'super-admin' global role so this check succeeds.
+  // False! global scope is just another scope, it doesn't override any other scopes.
+  
+} else {
+  // this code will execute
 }
 ```
 
@@ -175,14 +182,14 @@ Here is the list of important changes between meteor-roles 1.0 and 2.0 to consid
 * New schema for `roles` field and `Meteor.roles` collection.
 * Groups were renamed to scopes.
 * Scopes are always available, if you do not specify a scope, role is seen as a global role.
-* `GLOBAL_GROUP` is deprecated and should not be used anymore (just do not specify a scope, or use `null`).
+* `GLOBAL_GROUP` is deprecated and should not be used anymore (replaced with `Roles.GLOBAL_SCOPE`). Note: This is a departure from the v2.0 branch of alanning:roles
 * `getGroupsForUser` is deprecated, `getScopesForUser` should be used instead.
 * Functions which modify roles are available both on the client and server side, but should be called on the
   client side only from inside Meteor methods.
 * `deleteRole` can now delete role even when in use, it is automatically unset from all users.
 * Functions `addRolesToParent` and `removeRolesFromParent` were added.
 * `addUsersToRoles` and `setUserRoles` now require that roles exist and will not create missing roles automatically.
-* All functions work with 1.0 arguments, but in 2.0 accept extra arguments and/or options.
+* Functions are not backwards compatible i.e. all functions need a scope (i.e. just specify `Roles.GLOBAL_SCOPE` if all roles share the same scope)
 
 <br />
 
@@ -203,9 +210,9 @@ Add users to roles:
 ```js
 var users = [
       {name:"Normal User",email:"normal@example.com",roles:[]},
-      {name:"View-Secrets User",email:"view@example.com",roles:['view-secrets']},
-      {name:"Manage-Users User",email:"manage@example.com",roles:['manage-users']},
-      {name:"Admin User",email:"admin@example.com",roles:['admin']}
+      {name:"View-Secrets User",email:"view@example.com",roles:[{roleName: 'view-secrets', scope: '__global_scope__', isAssigned: true}]},
+      {name:"Manage-Users User",email:"manage@example.com",roles:[{roleName: 'manage-users', scope: '__global_scope__', isAssigned: true}]},
+      {name:"Admin User",email:"admin@example.com",roles:[{roleName: 'admin', scope: '__global_scope__', isAssigned: true}]}
     ];
 
 _.each(users, function (user) {
@@ -219,10 +226,10 @@ _.each(users, function (user) {
 
   if (user.roles.length > 0) {
     _.each(user.roles, function (role) {
-      Roles.createRole(role, {unlessExists: true});
+      Roles.createRole(role, {unlessExists: true, scope: Roles.GLOBAL_SCOPE});
     });
     // Need _id of existing user record so this call must come after `Accounts.createUser`.
-    Roles.addUsersToRoles(id, user.roles);
+    Roles.addUsersToRoles(id, user.roles, Roles.GLOBAL_SCOPE);
   }
 
 });
@@ -246,7 +253,7 @@ Meteor.publish('secrets', function (scope) {
   check(scope, String);
 
   if (Roles.userIsInRole(this.userId, ['view-secrets','admin'], scope)) {
-    
+    // this is just a dummy example of some sort of privileged operation. Beware that 'scope' comes from the client in this case.
     return Meteor.secrets.find({scope: scope});
     
   } else {
@@ -266,7 +273,7 @@ Prevent non-authorized users from creating new users:
 Accounts.validateNewUser(function (user) {
   var loggedInUser = Meteor.user();
 
-  if (Roles.userIsInRole(loggedInUser, ['admin','manage-users'])) {
+  if (Roles.userIsInRole(loggedInUser, ['admin','manage-users'], Roles.GLOBAL_SCOPE)) {
     return true;
   }
 
@@ -356,17 +363,17 @@ The following example is just sugar to help improve the user experience for norm
 the 'admin_nav' template in the example below will still be able to do so by manually reading the bundled `client.js`
 file. It won't be pretty but it is possible. But this is not a problem as long as the actual data is restricted server-side.
 
-To check for global roles or when not using scopes:
+To check for global roles:
 
 ```handlebars
 <!-- client/myApp.html -->
 
 <template name="header">
   ... regular header stuff
-  {{#if isInRole 'admin'}}
+  {{#if isInRole 'admin' '__global_scope__'}}
     {{> admin_nav}}  
   {{/if}}
-  {{#if isInRole 'admin,editor'}}
+  {{#if isInRole 'admin,editor' '__global_scope__'}}
     {{> editor_stuff}}
   {{/if}}
 </template>

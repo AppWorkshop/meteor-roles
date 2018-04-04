@@ -95,22 +95,22 @@
 <p>It uses <code>roles</code> field to <code>Meteor.users</code> documents which is an array of subdocuments with the following
 schema:</p>
 <ul>
-<li><code>_id</code>: role name</li>
+<li><code>roleName</code>: role name</li>
 <li><code>scope</code>: scope name</li>
 <li><code>assigned</code>: boolean, if the role was manually assigned (set), or was automatically inferred (eg., subroles)</li>
 </ul>
 <p>Roles themselves are accessible throgh <code>Meteor.roles</code> collection and documents consist of:</p>
 <ul>
-<li><code>_id</code>: role name</li>
+<li><code>roleName</code>: role name</li>
 <li><code>children</code>: list of subdocuments:
 <ul>
-<li><code>_id</code></li>
+<li><code>roleName</code></li>
 </ul>
 </li>
 </ul>
 <p>Children list elements are subdocuments so that they can be easier extended in the future or by plugins.</p>
 <p>Roles can have multiple parents and can be children (subroles) of multiple roles.</p>
-<p>Example: <code>{_id: &quot;admin&quot;, children: [{_id: &quot;editor&quot;}]}</code></p>
+<p>Example: <code>{roleName: &quot;admin&quot;, children: [{roleName: &quot;editor&quot;}]}</code></p>
 
 </div>
 
