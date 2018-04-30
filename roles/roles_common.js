@@ -936,6 +936,24 @@ _.extend(Roles, {
   },
 
   /**
+   * Retrieve cursor of all existing roles.
+   *
+   * @method getRolesByScope
+   * @param {Object|string} scope the name of scope to provide roles for
+   * @param {Object} [queryOptions] Options which are passed directly
+   *                                through to `Meteor.roles.find(query, options)`.
+   * @return {Cursor} Cursor of existing roles.
+   * @static
+   */
+  getRolesByScope: function (scope, queryOptions) {
+    queryOptions = queryOptions || {sort: {roleName: 1}};
+
+    Roles._checkScopeName(scope);
+
+    return Meteor.roles.find({scope: scope}, queryOptions);
+  },
+
+  /**
    * Retrieve all users who are in target role.
    *
    * Options:

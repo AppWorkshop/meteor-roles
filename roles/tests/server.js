@@ -696,6 +696,24 @@
     });
 
   Tinytest.add(
+      'roles - can get all roles by scope',
+      function (test) {
+        reset();
+
+        _.each(roles, function (role) {
+          Roles.createRole(role, Roles.GLOBAL_SCOPE);
+        });
+
+        // compare roles, sorted alphabetically
+        var expected = _.clone(roles),
+            actual = _.pluck(Roles.getRolesByScope(Roles.GLOBAL_SCOPE).fetch(), 'roleName');
+
+        test.equal(actual, expected);
+
+        test.equal(_.pluck(Roles.getRolesByScope(Roles.GLOBAL_SCOPE, {sort: {roleName: -1}}).fetch(), 'roleName'), expected.reverse());
+      });
+
+  Tinytest.add(
     'roles - can\'t get roles for non-existent user', 
     function (test) {
       reset();
