@@ -1,6 +1,6 @@
 Package.describe({
   summary: "Authorization package for Meteor",
-  version: "2.0.1",
+  version: "2.0.2",
   git: "https://github.com/AppWorkshop/meteor-roles.git",
   name: "appworkshop:roles"
 });
